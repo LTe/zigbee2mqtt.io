@@ -38,6 +38,10 @@ availability:
         timeout: 10
         # Maximum jitter (in msec) allowed on timeout to avoid availability pings trying to trigger around the same time (default: 30000, min: 1000)
         max_jitter: 30000
+        # Response timeout of each ping in milliseconds (default: 10000)
+        ping_timeout: 10000
+        # Delay before retrying a failed ping in milliseconds (default: 3000)
+        retry_delay: 3000
         # Enable timeout backoff on failed availability pings (default: true)
         # Pattern used: x1.5, x3, x6, x12... (with default timeout of 10min: 10, 15, 30, 60, 120...)
         backoff: true
@@ -58,6 +62,9 @@ devices:
         # Change availability timeout to 3 minutes for this device only
         availability:
             timeout: 3
+            # Override ping timing for this active device only
+            ping_timeout: 400
+            retry_delay: 100
             # active devices also can specify `max_jitter`, `backoff`, `pause_on_backoff_gt` (see above)
 ```
 
@@ -71,6 +78,29 @@ devices:
         # Enable availability for just 'my_switch'
         availability: true
 ```
+
+### Ping timing
+
+`timeout` is the inactivity period in **minutes** before checking a device. `ping_timeout` is the response timeout of
+an individual availability ping in **milliseconds**, and `retry_delay` is the delay before the second attempt in
+**milliseconds**. These ping settings apply only to active devices; passive devices are not pinged.
+
+Device options override `availability.active` one setting at a time. Omitted options inherit the global values,
+which default to `ping_timeout: 10000` and `retry_delay: 3000`. An availability object can specify only these overrides;
+there is no need to repeat `timeout`. Setting `availability: false` still disables checks for that device.
+
+`ping_timeout` must be an integer from 1 to 2147483647. `retry_delay` must be an integer from 0 to 2147483647;
+zero removes the wait between attempts. To remove a device override through `bridge/request/device/options`, set
+that option to `null`; the global value then applies to subsequent checks. Invalid live device ping timing overrides
+fall back to the global values; invalid values in the configuration file fail startup validation.
+
+A previously available device gets up to two attempts, with recovery enabled on the second attempt. An already
+unavailable device gets one attempt. Changing ping timing does not change the attempt count, jitter, timer padding,
+queue spacing, or backoff. Adapter delivery and recovery may add time, so `ping_timeout` is not an end-to-end deadline
+for declaring a device offline.
+
+Shorter response timeouts can mark powered devices offline when the network is busy or while they are starting.
+Tune selected devices only after observing their response times. The example values above are not recommended defaults.
 
 ## State retrieval
 
